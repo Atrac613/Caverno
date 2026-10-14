@@ -91,7 +91,8 @@ const Map<String, int> _lineBudgets = {
   // -52: append, replace and trailing-think helpers share one owner-scoped
   // rewrite (LastMessageEdit) instead of duplicated attached/detached copies.
   // -36: the tool-artifact strip of the last assistant message joins it.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 7136,
+  // -17: the six final-answer notice wrappers share _applyFinalAnswerNotice.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 7119,
   'lib/features/chat/domain/services/tool_loop/content_tool_call_partition.dart':
       35,
   'lib/features/chat/domain/services/tool_loop/repeated_content_tool_recovery_plan.dart':
@@ -1369,7 +1370,8 @@ const Map<String, int> _libraryLineBudgets = {
   // log (LL46); the registry and the sections live outside the library.
   // -52: the owner-scoped last-message helpers share one rewrite.
   // -36: the tool-artifact strip joins them.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19651,
+  // -17: the final-answer notice wrappers share one helper.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19634,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

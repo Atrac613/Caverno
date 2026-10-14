@@ -50,3 +50,21 @@ failed `queued work drains only for its visible idle owner`, so no new
 characterization test was needed. ChatNotifier 7,172 -> 7,136 root,
 19,687 -> 19,651 aggregate; one more ambient read removed from the baseline.
 Full suite 12,335 tests pass.
+
+## Third slice (2026-10-15): final-answer notice wrappers
+
+The six notice wrappers (`_appendUnexecuted...NoticeIfNeeded`,
+`_replace...CommandSuccessClaimIfNeeded`) each read the turn's final-answer
+messages and applied one mutation; they now call one
+`_applyFinalAnswerNotice`. `_applyFinalAnswerMessageMutation` itself is
+unchanged. ChatNotifier 7,136 -> 7,119 root, 19,651 -> 19,634 aggregate;
+the turn-scope baseline was regenerated (one method added, reads unchanged,
+a 45-line diff now that its ordering is stable).
+
+Coverage gap found, not closed: removing the detached early return in
+`_applyFinalAnswerMessageMutation` fails no test. The owner-routing branch is
+covered (forcing the visible-state write fails two suites). A detached-turn
+characterization attempt did not reach any notice path (the bracketed answer
+in a no-tool-call coding turn did not trigger the unexecuted-tool-request
+notice), so it was discarded rather than kept as a test that pins nothing.
+Freeze that guard before moving `_applyFinalAnswerMessageMutation`.

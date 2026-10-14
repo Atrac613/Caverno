@@ -670,9 +670,9 @@
   },
   "summary": {
     "scannedFiles": 138,
-    "methods": 1532,
+    "methods": 1533,
     "manifestEntrypoints": 185,
-    "reachableMethods": 718,
+    "reachableMethods": 719,
     "ambientReads": 53,
     "methodsWithAmbientReads": 33,
     "methodTurnIdentityReads": 12,
@@ -14534,8 +14534,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
+        "_applyFinalAnswerNotice",
         "appendUnexecutedCommandAction"
       ],
       "entrypoint": false,
@@ -14551,8 +14550,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
+        "_applyFinalAnswerNotice",
         "appendUnexecutedFileSideEffect"
       ],
       "entrypoint": false,
@@ -14568,9 +14566,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
-        "appendUnexecutedToolRequest"
+        "_applyFinalAnswerNotice"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -14585,8 +14581,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
+        "_applyFinalAnswerNotice",
         "appendUnverifiedReadOnlyInspection"
       ],
       "entrypoint": false,
@@ -14611,6 +14606,24 @@
         "_turnOwnerForGeneration",
         "addTransform",
         "copyWith"
+      ],
+      "entrypoint": false,
+      "reachable": true,
+      "turnReachable": true
+    },
+    {
+      "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
+      "declaration": "_applyFinalAnswerNotice",
+      "signature": "/// Applies one final-answer notice to the turn's own messages.\n  void _applyFinalAnswerNotice(\n    int generation,\n    FinalAnswerMessageMutation? Function(List<Message> messages) notice, {\n    ChatTurnOwner? owner,\n  })",
+      "turnIdentityParameters": [
+        "int generation",
+        "ChatTurnOwner? owner"
+      ],
+      "turnScopedAccessors": [],
+      "calls": [
+        "_applyFinalAnswerMessageMutation",
+        "_finalAnswerMessagesForGeneration",
+        "notice"
       ],
       "entrypoint": false,
       "reachable": true,
@@ -16548,8 +16561,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
+        "_applyFinalAnswerNotice",
         "replaceFailedCommandClaim"
       ],
       "entrypoint": false,
@@ -16587,8 +16599,7 @@
       ],
       "turnScopedAccessors": [],
       "calls": [
-        "_applyFinalAnswerMessageMutation",
-        "_finalAnswerMessagesForGeneration",
+        "_applyFinalAnswerNotice",
         "replaceTimedOutCommandClaim"
       ],
       "entrypoint": false,
@@ -25743,7 +25754,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_finalAnswerMessagesForGeneration",
       "kind": "state.messages",
-      "line": 6478,
+      "line": 6461,
       "column": 26,
       "methodHasTurnIdentity": true,
       "turnReachable": true,
@@ -25963,7 +25974,7 @@
       "path": "lib/features/chat/presentation/providers/chat_notifier.dart",
       "declaration": "_updateSessionMemory",
       "kind": "state.messages",
-      "line": 7055,
+      "line": 7038,
       "column": 35,
       "methodHasTurnIdentity": false,
       "turnReachable": true,

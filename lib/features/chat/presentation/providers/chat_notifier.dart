@@ -6382,89 +6382,72 @@ class ChatNotifier extends Notifier<ChatState> {
     _replaceLastMessageContentForGeneration(generation, preAnswerContent);
   }
 
+  /// Applies one final-answer notice to the turn's own messages.
+  void _applyFinalAnswerNotice(
+    int generation,
+    FinalAnswerMessageMutation? Function(List<Message> messages) notice, {
+    ChatTurnOwner? owner,
+  }) => _applyFinalAnswerMessageMutation(
+    generation,
+    notice(_finalAnswerMessagesForGeneration(generation)),
+    owner: owner,
+  );
+
   void _appendUnexecutedToolRequestNoticeIfNeeded({
     int? interactionGeneration,
-  }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.appendUnexecutedToolRequest(
-        _finalAnswerMessagesForGeneration(generation),
-      ),
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    interactionGeneration ?? _interactionGeneration,
+    _messageNotices.appendUnexecutedToolRequest,
+  );
 
   void _appendUnexecutedFileSideEffectNoticeIfNeeded({
     required List<ToolResultInfo> toolResults,
     int? interactionGeneration,
-  }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.appendUnexecutedFileSideEffect(
-        _finalAnswerMessagesForGeneration(generation),
-        toolResults,
-      ),
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    interactionGeneration ?? _interactionGeneration,
+    (messages) =>
+        _messageNotices.appendUnexecutedFileSideEffect(messages, toolResults),
+  );
 
   void _appendUnexecutedCommandActionNoticeIfNeeded({
     required List<ToolResultInfo> toolResults,
     required ChatTurnOwner owner,
-  }) {
-    final generation = owner.interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.appendUnexecutedCommandAction(
-        _finalAnswerMessagesForGeneration(generation),
-        toolResults,
-      ),
-      owner: owner,
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    owner.interactionGeneration,
+    (messages) =>
+        _messageNotices.appendUnexecutedCommandAction(messages, toolResults),
+    owner: owner,
+  );
 
   void _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded({
     required List<ToolResultInfo> toolResults,
     required ChatTurnOwner owner,
-  }) {
-    final generation = owner.interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.appendUnverifiedReadOnlyInspection(
-        _finalAnswerMessagesForGeneration(generation),
-        toolResults,
-      ),
-      owner: owner,
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    owner.interactionGeneration,
+    (messages) => _messageNotices.appendUnverifiedReadOnlyInspection(
+      messages,
+      toolResults,
+    ),
+    owner: owner,
+  );
 
   void _replaceTimedOutCommandSuccessClaimIfNeeded({
     required List<ToolResultInfo> toolResults,
     int? interactionGeneration,
-  }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.replaceTimedOutCommandClaim(
-        _finalAnswerMessagesForGeneration(generation),
-        toolResults,
-      ),
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    interactionGeneration ?? _interactionGeneration,
+    (messages) =>
+        _messageNotices.replaceTimedOutCommandClaim(messages, toolResults),
+  );
 
   void _replaceFailedCommandSuccessClaimIfNeeded({
     required List<ToolResultInfo> toolResults,
     int? interactionGeneration,
-  }) {
-    final generation = interactionGeneration ?? _interactionGeneration;
-    _applyFinalAnswerMessageMutation(
-      generation,
-      _messageNotices.replaceFailedCommandClaim(
-        _finalAnswerMessagesForGeneration(generation),
-        toolResults,
-      ),
-    );
-  }
+  }) => _applyFinalAnswerNotice(
+    interactionGeneration ?? _interactionGeneration,
+    (messages) =>
+        _messageNotices.replaceFailedCommandClaim(messages, toolResults),
+  );
 
   bool _hasTimedOutCommandResult(List<ToolResultInfo> toolResults) =>
       _messageNotices.hasTimedOutCommandResult(toolResults);
