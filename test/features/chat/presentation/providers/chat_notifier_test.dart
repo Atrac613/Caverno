@@ -7768,7 +7768,7 @@ with open(path, "rb") as file:
         ],
         intermediateToolRoleResponseContent:
             'I need to inspect the exact file contents again before retrying the edit.',
-        toolRoleResponseContent: 'Retry finished.',
+        toolRoleResponseContent: 'Recovered after repeated read_file.',
         finalAnswerChunks: const ['Recovered after repeated read_file.'],
       );
       final toolService = _FakeMcpToolService(
@@ -8249,7 +8249,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'The unit test task is complete.',
+          content: 'Recovered after duplicate inspection loop.',
           finishReason: 'stop',
         ),
       ],
@@ -8706,7 +8706,7 @@ with open(path, "rb") as file:
             finishReason: 'tool_calls',
           ),
         ChatCompletionResult(
-          content: 'The ping CLI implementation is complete.',
+          content: 'Recovered final answer after long loop.',
           finishReason: 'stop',
         ),
       ];
@@ -8900,7 +8900,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'The unit test task is complete.',
+          content: 'Recovered after duplicate follow-up loop.',
           finishReason: 'stop',
         ),
       ],
@@ -9207,7 +9207,7 @@ with open(path, "rb") as file:
             finishReason: 'tool_calls',
           ),
           ChatCompletionResult(
-            content: 'The saved task is complete.',
+            content: 'Recovered after validation retry.',
             finishReason: 'stop',
           ),
         ],
@@ -9524,8 +9524,7 @@ with open(path, "rb") as file:
             finishReason: 'tool_calls',
           ),
           ChatCompletionResult(
-            content:
-                'Added the file after reusing the previous git config result.',
+            content: 'Recovered command progression.',
             finishReason: 'stop',
           ),
         ],
