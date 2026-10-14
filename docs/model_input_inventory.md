@@ -6,9 +6,9 @@ produces the request, what it adds to the model's input, and whether it keeps
 the tool loop's cached prefix. `test/docs/model_input_inventory_docs_test.dart`
 fails when a label in `lib/` has no row here.
 
-Scope so far: requests, keyed by label, and guidance written into
-tool-result payloads, keyed by producer file. System-prompt sections are not
-inventoried yet.
+Scope: requests, keyed by label; guidance written into tool-result
+payloads, keyed by producer file; and system-prompt sections, keyed by
+section id.
 
 ## How to read the columns
 
@@ -153,6 +153,65 @@ approximate.
 | `features/chat/domain/services/verification/command_diagnostic_verifier_replay_guard.dart` | unchanged_verifier_replay_before_repair_blocked (0) | Make one mutation for the diagnostic, then rerun the verifier |
 | `features/chat/domain/services/verification/project_verification_repair_policy.dart` | project_verification_repair_protocol_violation (0) | Diagnose or repair with a project tool; report a concrete blocker |
 | `features/chat/domain/services/verification/saved_validation_command_guard.dart` | saved_validation_command_modified (4) | Run the saved validation command exactly as saved |
+
+## System prompt sections
+
+`SystemPromptBuilder.build` renders the system prompt as named sections, in
+this order; `onSections` reports each one's size for a render. Sizes are
+characters in one coding render with the full tool catalog and a project and
+nothing else (2026-10-14); `—` means the section was absent from it. The
+repo map and AGENTS.md sizes come from the session-log census in
+`docs/worklog/system_prompt_size_census_2026-10-14.md`. Every section sits in
+the system prompt, so a change to one rewrites the cached prefix from that
+point on. `test/docs/model_input_inventory_docs_test.dart` fails when a
+section id in the builder has no row.
+
+| Section | Present when | Chars |
+|---|---|---|
+| `anabasis_parent` | The turn runs as the Anabasis parent | — |
+| `core_principles` | Always | 1,529 |
+| `participant_role` | A participant role prompt is set | — |
+| `model_capability_profile` | The routed model has a probed capability profile | — |
+| `model_harness` | The model has a harness config | — |
+| `response_style` | Not voice mode | 1,188 |
+| `mode_instruction` | Always (general, or coding plus plan mode) | 186 |
+| `coding_project_context` | Coding or plan mode with a project name or root | 286 |
+| `repo_map` | A repository map was built | median 297, p90 8,500 |
+| `agents_md` | The project has an AGENTS.md | median 0, p90 6,608 |
+| `active_goal` | The thread has an active goal | — |
+| `project_read_tools` | Read tools offered | 2,438 |
+| `dependency_grounding` | `resolve_installed_dependency` offered | 253 |
+| `project_write_tools` | Write or edit tools offered | 1,455 |
+| `rollback_tool` | `rollback_last_file_change` offered | 139 |
+| `run_tests_tool` | `run_tests` offered | 180 |
+| `local_shell_tool` | `local_execute_command` offered | 678 |
+| `background_process_tools` | Any `process_*` tool offered | 1,404 |
+| `subagent_tools` | `spawn_subagent` offered | 189 |
+| `os_system_info_tool` | `os_get_system_info` offered | — |
+| `os_log_tool` | `os_log_read` offered | — |
+| `os_system_info_and_log` | Both OS tools offered | — |
+| `git_tool` | `git_execute_command` offered | 880 |
+| `git_finish_worktree_tool` | `git_finish_worktree_session` offered | 224 |
+| `project_inspection` | Read, shell or git tools offered | 221 |
+| `workflow` | A workflow stage other than idle, or a saved workflow | — |
+| `idle_plan_document` | Idle with no workflow but a plan document | — |
+| `skills` | Skills context and `load_skill` offered | — |
+| `voice_mode` | Voice mode | — |
+| `tools` | Any tool offered | 929 |
+| `tool_search` | `tool_search` offered | 535 |
+| `datetime_tool` | `get_current_datetime` offered | 140 |
+| `memory_tools` | Memory search or recall offered | — |
+| `load_skill_tool` | `load_skill` offered | 117 |
+| `save_skill_tool` | `save_skill` offered | 182 |
+| `create_routine_tool` | `create_routine` offered | 211 |
+| `python_script_tool` | `run_python_script` offered | 357 |
+| `browser_tools` | Any `browser_*` tool offered | 1,340 |
+| `computer_use_tools` | Any `computer_*` tool offered | 3,446 |
+| `web_research` | A search tool or `web_url_read` offered | 422 |
+| `execution_snapshot` | Coding or plan mode with an execution contract | — |
+| `temporal_context` | Always | 683 |
+| `environment_grounding` | Environment grounding was resolved | — |
+| `session_memory` | Session memory context exists | — |
 
 ## Known gaps
 

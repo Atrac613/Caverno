@@ -23,6 +23,24 @@ void main() {
     );
   });
 
+  test('every system prompt section has an inventory row', () {
+    final inventory = File('docs/model_input_inventory.md').readAsStringSync();
+    final builder = File(
+      'lib/features/chat/domain/services/system_prompt_builder.dart',
+    ).readAsStringSync();
+    final ids = RegExp(
+      r"buffer\.section\('([a-z_]+)'\)",
+    ).allMatches(builder).map((match) => match.group(1)!).toSet();
+    expect(ids, isNotEmpty);
+    expect(
+      ids.where((id) => !inventory.contains('| `$id` |')),
+      isEmpty,
+      reason:
+          'Add a row to the system prompt section table in '
+          'docs/model_input_inventory.md for each section.',
+    );
+  });
+
   test('every producer of tool-result guidance has an inventory row', () {
     final inventory = File('docs/model_input_inventory.md').readAsStringSync();
     final guidance = RegExp(
