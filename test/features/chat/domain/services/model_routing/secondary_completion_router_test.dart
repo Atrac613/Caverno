@@ -1,4 +1,7 @@
+import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mesh_secondary_completion_runner.dart';
+import 'package:caverno/features/chat/domain/entities/model_usage_role.dart';
 import 'package:caverno/features/chat/domain/services/model_routing/secondary_completion_router.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
@@ -6,6 +9,57 @@ import 'package:test/test.dart';
 
 void main() {
   group('SecondaryCompletionRouter', () {
+    test(
+      'labels the request by role, replacing an inherited turn label',
+      () async {
+        final fixture = _fixture();
+        const turn = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 's',
+          conversationId: 's',
+        );
+        final labels = <String?>[];
+
+        await LlmSessionLogContext.run(
+          turn.withRequestLabel('tool-result follow-up'),
+          () => fixture.router.run(
+            primaryDataSource: fixture.primaryDataSource,
+            route: _route(usageRole: ModelUsageRole.memoryExtraction),
+            operation: (dataSource, model) async {
+              labels.add(LlmSessionLogContext.current?.requestLabel);
+              return _successfulOperation(dataSource, model);
+            },
+          ),
+        );
+
+        expect(labels, ['memory extraction']);
+      },
+    );
+
+    test('leaves a role without its own label untouched', () async {
+      final fixture = _fixture();
+      const turn = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 's',
+        conversationId: 's',
+      );
+      final labels = <String?>[];
+
+      await LlmSessionLogContext.run(
+        turn.withRequestLabel('pro_reasoning_frame'),
+        () => fixture.router.run(
+          primaryDataSource: fixture.primaryDataSource,
+          route: _route(usageRole: ModelUsageRole.proReasoning),
+          operation: (dataSource, model) async {
+            labels.add(LlmSessionLogContext.current?.requestLabel);
+            return _successfulOperation(dataSource, model);
+          },
+        ),
+      );
+
+      expect(labels, ['pro_reasoning_frame']);
+    });
+
     test('routes OpenAI-compatible work to an assigned endpoint', () async {
       final endpoint = _endpoint('mesh-a', 'http://mesh-a.test/v1');
       final fixture = _fixture();
@@ -330,8 +384,10 @@ SecondaryCompletionRouteSnapshot _route({
   String selectedEndpointId = '',
   String selectedModel = 'role',
   String? fallbackModel,
+  ModelUsageRole usageRole = ModelUsageRole.unknown,
 }) {
   return SecondaryCompletionRouteSnapshot(
+    usageRole: usageRole,
     provider: provider,
     primaryBaseUrl: 'http://primary.test/v1',
     primaryApiKey: 'primary-key',

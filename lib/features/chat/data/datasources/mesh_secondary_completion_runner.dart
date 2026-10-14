@@ -1,6 +1,7 @@
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/mesh_endpoint_router.dart';
 import 'llm_request_failure.dart';
+import 'secondary_request_label.dart';
 
 /// A resolved data source target for a role: the [dataSource] to call, the
 /// [model] to request, and which endpoint it is (empty [endpointId] / [isPrimary]
@@ -63,7 +64,7 @@ class MeshSecondaryCompletionRunner<D> {
     required String model,
     String? fallbackModel,
     required Future<T> Function(D dataSource, String model) call,
-  }) async {
+  }) => SecondaryRequestLabel.scope(() async {
     final resolved = resolve(
       primary: primary,
       primaryBaseUrl: primaryBaseUrl,
@@ -93,7 +94,7 @@ class MeshSecondaryCompletionRunner<D> {
       );
       return call(primary, fallbackModel ?? model);
     }
-  }
+  });
 
   /// Whether [error] is an unambiguous "endpoint is down" signal, as opposed to
   /// a transient/ambiguous failure (timeout, intermittent 5xx), read from the
