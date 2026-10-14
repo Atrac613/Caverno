@@ -165,8 +165,14 @@ class ToolResultArtifactStore {
       'original_char_count': toolResult.result.length,
       'preview_char_count': preview.length,
       'preview': preview,
+      // The file sits in app support, outside every project, so the project
+      // read fence refuses it: pointing read_file at it sent the model to a
+      // path it could not open (LL47 census, 2026-10-14).
       'instruction':
-          'The full tool result was saved to file_path. Use read_file on that path if exact omitted content is needed.',
+          'The full tool result was saved to file_path for the user; project '
+          'read tools cannot open it. Work from the preview. If an omitted '
+          'part is needed, re-run the tool with a narrower request (for '
+          'example a filter, a smaller range, or head/tail).',
     });
   }
 

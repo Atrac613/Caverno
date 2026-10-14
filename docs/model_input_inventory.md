@@ -119,7 +119,7 @@ approximate.
 | `features/chat/data/datasources/local_command_tool_runtime_adapter.dart` | caller-supplied | Next action for a refused or failed local command |
 | `features/chat/data/datasources/local_shell_tools.dart` | local_shell_git_write_blocked (4) | Use git_execute_command for git writes |
 | `features/chat/data/datasources/run_tests_tool_runtime_adapter.dart` | caller-supplied | Re-select the project and inspect state before retrying tests |
-| `features/chat/data/repositories/tool_result_artifact_store.dart` | — | Full result saved to a file; read it if the omitted part is needed |
+| `features/chat/data/repositories/tool_result_artifact_store.dart` | — | Full result saved for the user outside the project; work from the preview or re-run narrower |
 | `features/chat/domain/services/anabasis/anabasis_delegation_admission.dart` | anabasis_delegation_not_ready (13) | Pick an exact ready workflow task; resolve unmet preconditions |
 | `features/chat/domain/services/anabasis/anabasis_parent_authority_guard.dart` | anabasis_parent_authority_refused (4) | The parent delegates or verifies instead of running the tool |
 | `features/chat/domain/services/anabasis/subagent_result_payloads.dart` | subagent_task_unknown, worktree_child_already_running (0), worktree_delegation_unavailable (0) | Use a known task id; poll the running child instead of starting another |

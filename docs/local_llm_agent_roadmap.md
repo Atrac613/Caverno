@@ -6256,9 +6256,10 @@ scoped. Separate finding: the existing >50k-character spill in
 `ToolResultArtifactStore` tells the model to `read_file` a path the project
 read fence refuses (2 firings, never followed).
 
-Next action: none for the spill itself; the existing spill's guidance needs a
-decision between rewording it and admitting its directory to the read fence
-(SEC1).
+The existing spill's guidance was reworded the same day (user decision): it
+no longer points `read_file` at the saved path, and tells the model to work
+from the preview or re-run the tool with a narrower request. The read fence
+is unchanged.
 
 ## Future Platform Vision Milestone Notes
 

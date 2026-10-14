@@ -48,6 +48,10 @@ void main() {
       expect(persisted.result, isNot(largeResult));
       final decoded = jsonDecode(persisted.result) as Map<String, dynamic>;
       expect(decoded['persisted_output'], isTrue);
+      // The path is outside the project read fence, so the guidance must
+      // not send the model to read_file it.
+      expect(decoded['instruction'], isNot(contains('Use read_file')));
+      expect(decoded['instruction'], contains('narrower request'));
       expect(decoded['original_char_count'], largeResult.length);
       expect(decoded['preview'], contains('Persisted output preview omitted'));
       expect(
