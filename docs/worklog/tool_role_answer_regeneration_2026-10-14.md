@@ -74,3 +74,11 @@ answer, and the labelled `tool-result final answer` re-send prefilled 3,488
 tokens from zero to produce it again. `tool/check_fix_firings.py` reports the
 row FIRED in the wild. Keeping the answer for real still needs the 23
 final-answer guard tests re-proven on the kept answer.
+
+## Default on, in a real session
+
+`343952b20` turns `keepToolRoleFinalAnswer` on by default. Session `ca7f4499`
+(same prompt and model) recorded `tool_role_answer_shadow_accept` and
+`tool_role_answer_kept`, issued no `tool-result final answer` request, and
+rendered the tool-role answer with its stop reason. The turn made two
+requests instead of three.
