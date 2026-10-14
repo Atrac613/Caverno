@@ -64,3 +64,13 @@ neither implemented:
    and tools in the request may invite another tool call.
 
 Both change a deliberate design and need a user decision.
+
+## Shadow in a real session
+
+`c59081df2` runs candidate 1 in shadow. Session `d12c5fe5` (build `81e73b6bb`,
+chat, `qwen3.8-27b-exl3`) recorded `tool_role_answer_shadow_accept`: the
+tool-role follow-up (12,288 of 12,756 prompt tokens cached) already held the
+answer, and the labelled `tool-result final answer` re-send prefilled 3,488
+tokens from zero to produce it again. `tool/check_fix_firings.py` reports the
+row FIRED in the wild. Keeping the answer for real still needs the 23
+final-answer guard tests re-proven on the kept answer.
