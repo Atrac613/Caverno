@@ -78,14 +78,23 @@ class CodingCommandPreflightIssueDetector {
   /// A shell chain reports the status of its last segment. A non-failing final
   /// segment can therefore hide an earlier failure. A single command followed
   /// by a negative assertion remains valid because that assertion is the check.
+  /// A tail joined by `&&` masks nothing: it runs only after every earlier
+  /// segment passed, so a failure still ends the chain with its own status. A
+  /// live farm run's `unittest && greeter.py --version && echo "exit=$?"` was
+  /// rejected here, and the reworded pass could never settle it.
   CodingCommandPreflightIssue? detectMaskedExitStatusIssue({
     required String command,
     String workingDirectory = '',
   }) {
     final normalizedCommand = command.trim();
     if (normalizedCommand.isEmpty) return null;
-    final segments = _splitShellSegments(normalizedCommand);
+    final separators = <String>[];
+    final segments = _splitShellSegments(
+      normalizedCommand,
+      separators: separators,
+    );
     if (segments.length < 3) return null;
+    if (separators[segments.length - 2] == '&&') return null;
 
     final last = segments.last.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (!_maskedExitStatusPattern.hasMatch(last)) return null;
@@ -230,7 +239,9 @@ class CodingCommandPreflightIssueDetector {
     return _dartCreateOptionsWithValue.contains(arg);
   }
 
-  List<String> _splitShellSegments(String command) {
+  /// Splits [command] at top-level `;`, newline, `&&` and `||`, recording in
+  /// [separators] the operator that ended each segment.
+  List<String> _splitShellSegments(String command, {List<String>? separators}) {
     final segments = <String>[];
     final buffer = StringBuffer();
     String? quoteChar;
@@ -267,6 +278,7 @@ class CodingCommandPreflightIssueDetector {
         final segment = buffer.toString().trim();
         if (segment.isNotEmpty) {
           segments.add(segment);
+          separators?.add(';');
         }
         buffer.clear();
         continue;
@@ -278,6 +290,7 @@ class CodingCommandPreflightIssueDetector {
         final segment = buffer.toString().trim();
         if (segment.isNotEmpty) {
           segments.add(segment);
+          separators?.add('$char$char');
         }
         buffer.clear();
         i += 1;

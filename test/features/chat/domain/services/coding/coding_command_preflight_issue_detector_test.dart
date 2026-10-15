@@ -227,6 +227,15 @@ void main() {
       }
     });
 
+    test('detects a tail that runs after a failure via ||', () {
+      expect(
+        detector.detectMaskedExitStatusIssue(
+          command: r'first && second || echo "exit=$?"',
+        ),
+        isNotNull,
+      );
+    });
+
     test('ignores blank, short, and failure-propagating chains', () {
       for (final command in const [
         '',
@@ -234,6 +243,10 @@ void main() {
         r'command; test $? -ne 0',
         'first && second && third',
         r'first; second; test $? -eq 0',
+        // Observed in a live farm run: an `&&` tail runs only after every
+        // earlier segment passed, so the chain still fails with them.
+        r'python3 -m unittest -v && python3 greeter.py --version && echo "exit=$?"',
+        'first && second && true;',
       ]) {
         expect(
           detector.detectMaskedExitStatusIssue(command: command),
