@@ -66,6 +66,10 @@ final class CavernoTerminalInteractionController {
       return;
     }
 
+    final command = request.command?.trim();
+    if (command != null && command.isNotEmpty) {
+      output.writeStderr('Command: $command\n');
+    }
     final target = request.target?.trim();
     if (target != null && target.isNotEmpty) {
       output.writeStderr('Target: $target\n');

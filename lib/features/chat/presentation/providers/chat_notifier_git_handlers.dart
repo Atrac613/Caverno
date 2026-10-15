@@ -397,7 +397,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       'git_mutation',
       _approvalSummary(reason, command),
       workingDirectory,
-      true,
+      command,
     );
   }
 

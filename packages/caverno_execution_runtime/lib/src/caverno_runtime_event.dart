@@ -168,14 +168,23 @@ final class CavernoRuntimeApprovalRequest {
     required this.risk,
     required this.summary,
     this.target,
+    this.command,
     this.rememberAllowed = false,
   });
 
   final String id;
   final String capability;
   final CavernoRuntimeApprovalRisk risk;
+
+  /// The model's stated reason when it gave one, otherwise the action itself.
   final String summary;
   final String? target;
+
+  /// The exact command a command approval would run.
+  ///
+  /// [summary] prefers the model's reason, so without this a terminal approver
+  /// saw "Read-only verification: run unit tests" and never the command.
+  final String? command;
   final bool rememberAllowed;
 }
 
@@ -201,6 +210,7 @@ final class CavernoRuntimeApprovalRequired extends CavernoRuntimeEvent {
     'risk': request.risk.name,
     'summary': request.summary,
     if (request.target != null) 'target': request.target,
+    if (request.command != null) 'command': request.command,
     'rememberAllowed': request.rememberAllowed,
   };
 }

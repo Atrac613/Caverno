@@ -140,7 +140,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     String capability,
     String summary,
     String? target, [
-    bool rememberAllowed = false,
+    String? command,
   ]) {
     return _pendingToolApprovals.registerCurrent(
       pending,
@@ -153,7 +153,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
           capability: capability,
           summary: summary,
           target: target,
-          rememberAllowed: rememberAllowed,
+          command: command,
         );
       },
     );

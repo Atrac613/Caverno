@@ -28,6 +28,27 @@ void main() {
       });
     }
 
+    test('shows the exact command beside the model reason', () async {
+      final output = _RecordingOutput();
+      final controller = CavernoTerminalInteractionController(
+        input: _LineInput(isTerminal: true, lines: ['n']),
+        output: output,
+        decisions: _RecordingDecisions(),
+      );
+
+      await controller.handle(
+        _approval(
+          capability: 'command_execution',
+          command: 'python3 -m unittest; rm -rf build',
+        ),
+      );
+
+      expect(
+        output.stderr.toString(),
+        contains('Command: python3 -m unittest; rm -rf build\n'),
+      );
+    });
+
     test('fails closed for a non-interactive approval', () async {
       final decisions = _RecordingDecisions();
       final controller = CavernoTerminalInteractionController(
@@ -106,7 +127,10 @@ void main() {
   });
 }
 
-CavernoRuntimeApprovalRequired _approval({required String capability}) {
+CavernoRuntimeApprovalRequired _approval({
+  required String capability,
+  String? command,
+}) {
   return CavernoRuntimeApprovalRequired(
     sequence: 1,
     timestamp: DateTime.utc(2026),
@@ -117,6 +141,7 @@ CavernoRuntimeApprovalRequired _approval({required String capability}) {
       risk: CavernoRuntimeApprovalRisk.high,
       summary: 'Perform the action',
       target: '/tmp/project',
+      command: command,
       rememberAllowed: true,
     ),
   );

@@ -926,7 +926,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       'command_execution',
       _approvalSummary(reason, command),
       workingDirectory,
-      true,
+      command,
     );
   }
 

@@ -124,7 +124,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       'remote_command',
       _approvalSummary(reason, command),
       pending.host,
-      true,
+      command,
     );
   }
 

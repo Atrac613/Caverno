@@ -67,10 +67,10 @@ void _runRuntimeTurnEventPublisher() {
     publisher.emitRuntimeApprovalRequired(
       generation: 1,
       id: 'approval-1',
-      capability: 'file_mutation',
-      summary: 'Write a file.',
-      target: '/workspace/file.txt',
-      rememberAllowed: true,
+      capability: 'command_execution',
+      summary: 'Verify the change.',
+      target: '/workspace',
+      command: 'dart test',
     );
     publisher.emitRuntimeQuestionRequired(
       1,
@@ -106,6 +106,8 @@ void _runRuntimeTurnEventPublisher() {
     expect(toolEvent.skipReason, 'none');
     expect(toolEvent.durationMs, 12);
     expect(ports.approvals.single.id, 'approval-1');
+    expect(ports.approvals.single.command, 'dart test');
+    expect(ports.approvals.single.rememberAllowed, isTrue);
     expect(
       ports.events
           .whereType<CavernoRuntimeQuestionRequired>()

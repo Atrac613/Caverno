@@ -18630,7 +18630,7 @@
     {
       "path": "lib/features/chat/presentation/providers/chat_notifier_approval_handlers.dart",
       "declaration": "_registerPendingToolApproval",
-      "signature": "Future<T> _registerPendingToolApproval<T>(\n    PendingToolApproval<T> pending,\n    ChatState Function(ChatState) apply,\n    String capability,\n    String summary,\n    String? target, [\n    bool rememberAllowed = false,\n  ])",
+      "signature": "Future<T> _registerPendingToolApproval<T>(\n    PendingToolApproval<T> pending,\n    ChatState Function(ChatState) apply,\n    String capability,\n    String summary,\n    String? target, [\n    String? command,\n  ])",
       "turnIdentityParameters": [],
       "turnScopedAccessors": [],
       "calls": [

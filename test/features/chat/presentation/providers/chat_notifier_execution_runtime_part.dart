@@ -471,6 +471,7 @@ void registerChatNotifierExecutionRuntimeTests() {
     expect(approval.request.capability, 'command_execution');
     expect(approval.request.summary, 'Verify the implementation');
     expect(approval.request.target, '/workspace');
+    expect(approval.request.command, 'dart test');
     expect(approval.request.rememberAllowed, isTrue);
 
     final question = events.whereType<CavernoRuntimeQuestionRequired>().single;

@@ -64,7 +64,7 @@ final class RuntimeTurnEventPublisher {
     required String capability,
     required String summary,
     String? target,
-    bool rememberAllowed = false,
+    String? command,
   }) {
     _handlesByGeneration[generation]?.emitApprovalRequired(
       CavernoRuntimeApprovalRequest(
@@ -73,7 +73,8 @@ final class RuntimeTurnEventPublisher {
         risk: CavernoRuntimeApprovalRisk.high,
         summary: summary,
         target: target,
-        rememberAllowed: rememberAllowed,
+        command: command,
+        rememberAllowed: command != null,
       ),
     );
   }
