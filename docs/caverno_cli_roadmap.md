@@ -549,10 +549,21 @@ Findings for CLI5d fixtures and follow-up work:
   verified on the device). Answering from the phone was listed as follow-up
   work above; hosting the server made it part of this slice.
 
+- Settings isolation (38e3c100a): with `--data-dir` (or `CAVERNO_HOME`),
+  preferences live in `preferences.json` inside it. A fresh directory starts
+  as a copy of the app's current preferences, API keys included (mode 600),
+  so an isolated run keeps the user's connection and role routing; the app's
+  own store is then neither read nor written. Checked on a Debug build: a
+  non-interactive farm run left the app's preferences file unmodified and
+  wrote its roadmap snapshots to the copy. Only an interactive run hosts the
+  Remote Coding server, since a non-interactive one refuses its first
+  approval at once.
+
 Next action:
 - Verify 6afb779d7 on the device with a long command approval.
-- Settings isolation for `--data-dir` before the CLI5d matrix, so matrix runs
-  neither read nor write the user's app settings.
+- CLI5d: the environment matrix runner. Each fixture gets its own data
+  directory; seed it from a settings file rather than the app's copy when a
+  run must be reproducible.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
