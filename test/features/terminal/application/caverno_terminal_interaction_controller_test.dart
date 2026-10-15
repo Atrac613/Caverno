@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caverno/features/terminal/application/caverno_cli_contract.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_input.dart';
 import 'package:caverno/features/terminal/application/caverno_terminal_interaction_controller.dart';
@@ -46,6 +48,59 @@ void main() {
       expect(
         output.stderr.toString(),
         contains('Command: python3 -m unittest; rm -rf build\n'),
+      );
+    });
+
+    test('stops waiting once a phone answers the approval', () async {
+      final input = _TypedInput();
+      final output = _RecordingOutput();
+      final decisions = _RecordingDecisions();
+      final controller = CavernoTerminalInteractionController(
+        input: input,
+        output: output,
+        decisions: decisions,
+      );
+
+      final handled = controller.handle(_approval(capability: 'file_mutation'));
+      await pumpEventQueue();
+      decisions.settledElsewhere['approval-1']!.complete();
+      await handled;
+
+      expect(decisions.approvals, isEmpty);
+      expect(decisions.terminations, isEmpty);
+      expect(output.stderr.toString(), contains('Answered on another device.'));
+    });
+
+    test('never lets a late answer grant the next approval', () async {
+      final input = _TypedInput();
+      final output = _RecordingOutput();
+      final decisions = _RecordingDecisions();
+      final controller = CavernoTerminalInteractionController(
+        input: input,
+        output: output,
+        decisions: decisions,
+      );
+
+      final first = controller.handle(_approval(capability: 'file_mutation'));
+      await pumpEventQueue();
+      decisions.settledElsewhere['approval-1']!.complete();
+      await first;
+      final second = controller.handle(
+        _approval(capability: 'command_execution', id: 'approval-2'),
+      );
+      await pumpEventQueue();
+      // Typed for the first prompt, arriving while the second one shows.
+      input.type('y');
+      await pumpEventQueue();
+      expect(decisions.approvals, isEmpty);
+      expect(input.reads, 1);
+      input.type('y');
+      await second;
+
+      expect(decisions.approvals, [('approval-2', true)]);
+      expect(
+        output.stderr.toString(),
+        contains('Ignored input typed before this prompt.'),
       );
     });
 
@@ -129,6 +184,7 @@ void main() {
 
 CavernoRuntimeApprovalRequired _approval({
   required String capability,
+  String id = 'approval-1',
   String? command,
 }) {
   return CavernoRuntimeApprovalRequired(
@@ -136,7 +192,7 @@ CavernoRuntimeApprovalRequired _approval({
     timestamp: DateTime.utc(2026),
     turnId: 'turn-1',
     request: CavernoRuntimeApprovalRequest(
-      id: 'approval-1',
+      id: id,
       capability: capability,
       risk: CavernoRuntimeApprovalRisk.high,
       summary: 'Perform the action',
@@ -166,6 +222,31 @@ final class _LineInput implements CavernoCliInputPort {
   Future<String> readToEnd() => throw UnimplementedError();
 }
 
+/// Lines the test types one at a time, after the prompt is already waiting.
+final class _TypedInput implements CavernoCliInputPort {
+  final _waiting = <Completer<String?>>[];
+
+  void type(String line) => _waiting.removeAt(0).complete(line);
+
+  int get reads => _waiting.length;
+
+  @override
+  bool get isTerminal => true;
+
+  @override
+  Future<String> readFile(String path) => throw UnimplementedError();
+
+  @override
+  Future<String?> readLine() {
+    final line = Completer<String?>();
+    _waiting.add(line);
+    return line.future;
+  }
+
+  @override
+  Future<String> readToEnd() => throw UnimplementedError();
+}
+
 final class _RecordingOutput implements CavernoTerminalOutputPort {
   final stderr = StringBuffer();
 
@@ -182,6 +263,11 @@ final class _RecordingDecisions implements CavernoTerminalDecisionPort {
   final approvals = <(String, bool)>[];
   final questions = <(String, String?)>[];
   final terminations = <({String code, String message, int exitCode})>[];
+  final settledElsewhere = <String, Completer<void>>{};
+
+  @override
+  Future<void> settled(String id) =>
+      (settledElsewhere[id] ??= Completer<void>()).future;
 
   @override
   Future<void> resolveApproval({

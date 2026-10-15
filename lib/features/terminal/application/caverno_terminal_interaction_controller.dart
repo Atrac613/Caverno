@@ -8,6 +8,11 @@ abstract interface class CavernoTerminalDecisionPort {
 
   Future<void> resolveQuestion({required String id, String? answer});
 
+  /// Completes once the interaction [id] is no longer pending, whoever
+  /// answered it. A farm run also offers its approvals to a paired phone, and
+  /// a prompt answered there must not keep waiting on this terminal.
+  Future<void> settled(String id);
+
   Future<void> terminate({
     required String code,
     required String message,
@@ -28,6 +33,12 @@ final class CavernoTerminalInteractionController {
   final CavernoTerminalDecisionPort decisions;
   final bool interactive;
   final Set<String> _handledRequestIds = <String>{};
+
+  /// The single outstanding stdin read; a second concurrent read would throw.
+  Future<String?>? _pendingLine;
+
+  /// Whether [_pendingLine] was started for a prompt answered elsewhere.
+  bool _pendingLineIsStale = false;
 
   Future<void> handle(CavernoRuntimeEvent event) async {
     switch (event) {
@@ -77,8 +88,12 @@ final class CavernoTerminalInteractionController {
     if (request.rememberAllowed) {
       output.writeStderr('This action can be remembered by the application.\n');
     }
-    output.writeStderr('Approve once? [y/N] ');
-    final response = (await input.readLine())?.trim().toLowerCase();
+    final (line, settledElsewhere) = await _readAnswer(
+      request.id,
+      'Approve once? [y/N] ',
+    );
+    if (settledElsewhere) return;
+    final response = line?.trim().toLowerCase();
     final approved = response == 'y' || response == 'yes';
     await decisions.resolveApproval(id: request.id, approved: approved);
     if (!approved) {
@@ -109,8 +124,9 @@ final class CavernoTerminalInteractionController {
     for (var index = 0; index < request.options.length; index += 1) {
       output.writeStderr('  ${index + 1}) ${request.options[index]}\n');
     }
-    output.writeStderr('Answer: ');
-    final answer = (await input.readLine())?.trim();
+    final (line, settledElsewhere) = await _readAnswer(request.id, 'Answer: ');
+    if (settledElsewhere) return;
+    final answer = line?.trim();
     await decisions.resolveQuestion(
       id: request.id,
       answer: answer?.isEmpty == true ? null : answer,
@@ -121,6 +137,34 @@ final class CavernoTerminalInteractionController {
         message: 'The required question was not answered.',
         exitCode: CavernoCliExitCode.blocked,
       );
+    }
+  }
+
+  /// Prompts with [prompt] until a line arrives or [id] is settled elsewhere.
+  ///
+  /// A line typed for a prompt that was answered on another device arrives
+  /// late, while the next prompt is showing. It is discarded rather than taken
+  /// as that prompt's answer, so a "y" meant for one approval can never grant
+  /// the next one.
+  Future<(String?, bool)> _readAnswer(String id, String prompt) async {
+    final settled = decisions.settled(id).then((_) => (null, true));
+    while (true) {
+      output.writeStderr(prompt);
+      final stale = _pendingLineIsStale;
+      final line = _pendingLine ??= input.readLine();
+      final result = await Future.any<(String?, bool)>([
+        line.then((value) => (value, false)),
+        settled,
+      ]);
+      if (result.$2) {
+        _pendingLineIsStale = true;
+        output.writeStderr('\nAnswered on another device.\n');
+        return result;
+      }
+      _pendingLine = null;
+      _pendingLineIsStale = false;
+      if (!stale) return result;
+      output.writeStderr('Ignored input typed before this prompt.\n');
     }
   }
 }

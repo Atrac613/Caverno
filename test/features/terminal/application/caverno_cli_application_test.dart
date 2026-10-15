@@ -244,6 +244,9 @@ final class _FakeRuntime implements CavernoCliRuntimePort {
   }
 
   @override
+  Future<void> settled(String id) => Completer<void>().future;
+
+  @override
   Future<void> terminate({
     required String code,
     required String message,

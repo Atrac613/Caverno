@@ -62,6 +62,32 @@ void main() {
     expect(container.read(chatNotifierProvider).pendingLocalCommand, isNull);
   });
 
+  test('settles once the approval is answered anywhere', () async {
+    final owner = notifier.registerApprovalOwnerForTest('terminal-test');
+    notifier.conversationId = owner.conversationId;
+    final result = notifier.requestLocalCommand(
+      owner: owner,
+      command: 'dart test',
+      workingDirectory: '/tmp/project',
+    );
+    final id = container.read(chatNotifierProvider).pendingLocalCommand!.id;
+    var settled = false;
+    unawaited(adapter.settled(id).then((_) => settled = true));
+    await pumpEventQueue();
+    expect(settled, isFalse);
+
+    // As a paired phone would, through the notifier rather than the adapter.
+    notifier.resolveLocalCommand(
+      id: id,
+      approval: const LocalCommandApproval(approved: true),
+    );
+    await result;
+    await pumpEventQueue();
+
+    expect(settled, isTrue);
+    await adapter.settled(id);
+  });
+
   test('rejects a stale approval without clearing its successor', () async {
     final ownerA = notifier.registerApprovalOwnerForTest('terminal-test');
     notifier.conversationId = ownerA.conversationId;

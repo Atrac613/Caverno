@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/domain/entities/conversation.dart';
+import '../../../chat/domain/services/approval/pending_approval_summary.dart';
 import '../../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/chat_state.dart';
@@ -327,6 +329,24 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
         answer: _workflowDecisionAnswer(pendingDecision!, answer),
       );
     }
+  }
+
+  @override
+  Future<void> settled(String id) {
+    bool pending(ChatState state) =>
+        pendingApprovalsByPriority(state).any((request) => request.id == id) ||
+        state.pendingAskUserQuestion?.id == id ||
+        state.pendingWorkflowDecision?.id == id;
+    _chatNotifier;
+    if (!pending(_chatState)) return Future<void>.value();
+    final done = Completer<void>();
+    late final ProviderSubscription<ChatState> subscription;
+    subscription = container.listen<ChatState>(chatNotifierProvider, (_, next) {
+      if (pending(next) || done.isCompleted) return;
+      done.complete();
+      subscription.close();
+    });
+    return done.future;
   }
 
   @override
