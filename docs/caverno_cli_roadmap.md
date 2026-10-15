@@ -498,14 +498,46 @@ Evidence:
   conversations listener, as in the GUI. A dirty tree is refused
   (`uncommitted_changes`, exit 2) because there is nobody to ask. Verified on
   a Debug build: `farm --help`, and the dirty-tree refusal against a scratch
-  repository with an isolated `--data-dir`. No live end-to-end farm run yet.
+  repository with an isolated `--data-dir`.
+
+- Live runs (2026-10-15): a one-item Python fixture (`greeter.py`, add
+  `--version` with a unit test), qwen3.8-27b-exl3 on the LAN for every role
+  including code review, Debug build, approvals answered at a TTY. The fourth
+  run completed: decompose, implement, review (`clean`, native verdict),
+  preparation, commit (`head_advanced`), exit 0, with the roadmap checkbox
+  ticked in the same commit. The earlier runs found four defects, each fixed
+  on `main` before the next run:
+  - A non-TTY run stopped at the first `file_mutation` approval with exit 77
+    and `approval_unavailable`, as designed.
+  - `a && b && echo "exit=$?"` was flagged as a masked exit status although
+    an `&&` tail runs only after every earlier segment passed; the task ended
+    blocked with a verified implementation (28eb6eba6).
+  - A chain masked by `;` stayed a failed verification that no other passing
+    command could settle, so the review was `incomplete` twice; it is now
+    settled by any later passing verification (7655c29c0).
+  - The terminal approval prompt showed the model's `reason` instead of the
+    command; it now prints `Command:` on its own line (bde31119e).
+
+Findings for CLI5d fixtures and follow-up work:
+- A single unranked checklist item yields no recommended item, so the run
+  exits 2 with `roadmap_item_unavailable`. A fixture needs an explicit
+  pointer such as `Next: **V1**.`
+- With that pointer the extraction cites the pointer line, not the checkbox
+  line, so the commit check's "cited roadmap task is marked complete" has no
+  entry to inspect (`roadmapIdentityMatched: false`). The model ticked the box
+  anyway; the gate did not require it. The pointer line also stays stale
+  after completion.
+- `--data-dir` isolates storage but not settings, in both directions: the CLI
+  loads the app's MCP servers and roles from shared preferences, and a run
+  wrote `project_farm_roadmap_snapshots` entries into the app's real
+  preferences file.
+- A Debug build prints `flutter: The Dart VM service is listening ...` to
+  stdout ahead of the `--json` events.
 
 Next action:
-- Run one live `caverno farm` on a small fixture project from a TTY, so
-  approvals can be answered, and compare its `project_task_decision` sequence
-  with the GUI path. Then start CLI5c.
-- Known gap: `--data-dir` isolates storage but not settings; the CLI still
-  loads the app's MCP servers and roles from shared preferences.
+- CLI5c (pause and notify).
+- Settings isolation for `--data-dir` before the CLI5d matrix, so matrix runs
+  neither read nor write the user's app settings.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
