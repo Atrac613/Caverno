@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../entities/tool_call_info.dart';
+import '../coding/coding_command_output_issue_detector.dart';
 import '../files/file_mutation_evidence_policy.dart';
 import '../python/inline_python_verification_contract.dart';
 import 'reconciled_verification_feedback.dart';
@@ -30,6 +31,8 @@ abstract final class CommandVerificationReconciliation {
       if (scope == null) continue;
       final inline = scope.inlineContract;
       if (successfulScopes.contains(scope.key) ||
+          (successfulScopes.isNotEmpty &&
+              const CodingCommandOutputIssueDetector().provesNothing(result)) ||
           (scope.projectEnvKey != null &&
               successfulScopes.contains(scope.projectEnvKey)) ||
           (scope.runtimeLaunchFailed &&

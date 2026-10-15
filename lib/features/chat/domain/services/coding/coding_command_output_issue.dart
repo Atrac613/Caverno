@@ -2,6 +2,11 @@ import 'dart:convert';
 
 import '../tool_loop/tool_outcome_shadow_comparison.dart';
 
+/// [CodingCommandOutputIssue.source] of a chain whose final segment hides the
+/// earlier segments' exit status. Such a run proves nothing either way, so any
+/// later passing verification settles the issue.
+const maskedExitStatusSource = 'exit_status_mask';
+
 class CodingCommandOutputIssue {
   const CodingCommandOutputIssue({
     required this.toolName,

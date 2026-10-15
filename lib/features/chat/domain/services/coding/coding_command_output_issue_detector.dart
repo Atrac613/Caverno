@@ -89,18 +89,21 @@ class CodingCommandOutputIssueDetector {
                 command: command,
                 workingDirectory: workingDirectory,
               ));
-    if (preflightIssue != null) {
-      return CodingCommandOutputIssue(
-        toolName: toolName,
-        command: command,
-        workingDirectory: workingDirectory,
-        exitCode: exitCode!,
-        exitCodeSource: exitCodeResolution.source,
-        source: 'command',
-        summary: preflightIssue.summary,
-        excerpt: preflightIssue.segment,
-      );
-    }
+    CodingCommandOutputIssue commandIssue(String source) =>
+        CodingCommandOutputIssue(
+          toolName: toolName,
+          command: command,
+          workingDirectory: workingDirectory,
+          exitCode: exitCode!,
+          exitCodeSource: exitCodeResolution.source,
+          source: source,
+          summary: preflightIssue!.summary,
+          excerpt: preflightIssue.segment,
+        );
+    // A masked chain is only missing evidence, so a failure its output shows
+    // is reported first: that one must stay until the same check passes.
+    final masked = preflightIssue?.code == 'masked_exit_status';
+    if (preflightIssue != null && !masked) return commandIssue('command');
     final report = ShellExitStatusReport.parse(command);
     if (report != null) {
       final output =
@@ -154,8 +157,15 @@ class CodingCommandOutputIssueDetector {
         excerpt: _excerpt(output, signal.startIndex),
       );
     }
-    return null;
+    return masked ? commandIssue(maskedExitStatusSource) : null;
   }
+
+  /// Whether [result] is a chain whose final segment hid the earlier exit
+  /// statuses and whose output shows no failure: it proved nothing either way,
+  /// so any later passing verification settles it. A live farm review ran four
+  /// checks joined by `;`, then passed the tests alone, and stayed blocked.
+  bool provesNothing(ToolResultInfo result) =>
+      detect(result)?.source == maskedExitStatusSource;
 
   String? feedbackSignature(
     ToolResultInfo feedback, {

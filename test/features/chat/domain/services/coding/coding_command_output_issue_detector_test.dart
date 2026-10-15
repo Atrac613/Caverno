@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/coding/coding_command_output_issue.dart';
 import 'package:caverno/features/chat/domain/services/coding/coding_command_output_issue_detector.dart';
 import 'package:caverno/features/chat/domain/services/tool_loop/tool_outcome_shadow_comparison.dart';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
@@ -296,19 +297,26 @@ void main() {
           'stderr': 'Traceback (most recent call last)',
         },
       );
+      Map<String, Object> maskedRun(String stdout) => {
+        'exit_code': 0,
+        'command': r'first && second; test $? -ne 0',
+        'stdout': stdout,
+      };
       final masked = detector.detectFromDecodedCommandResult(
         toolName: 'local_execute_command',
-        decoded: const {
-          'exit_code': 0,
-          'command': r'first && second; test $? -ne 0',
-          'stdout': '# Error',
-        },
+        decoded: maskedRun('ok'),
+      );
+      final maskedFailure = detector.detectFromDecodedCommandResult(
+        toolName: 'local_execute_command',
+        decoded: maskedRun('# Error'),
       );
 
       expect(dartCreate!.source, 'command');
       expect(dartCreate.summary, contains('multiple target'));
-      expect(masked!.source, 'command');
+      expect(masked!.source, maskedExitStatusSource);
       expect(masked.summary, contains('not evidence'));
+      // A failure the masked chain printed outranks the missing evidence.
+      expect(maskedFailure!.source, 'stdout');
     });
 
     test('checks stdout before stderr and skips blank or clean streams', () {

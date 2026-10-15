@@ -18,6 +18,9 @@ void main() {
   const suite =
       'cd /w && .venv/bin/python verify_logging.py && '
       '.venv/bin/python -m pytest test_watcher.py -q';
+  const masked =
+      r'python3 -m unittest -v && python3 greeter.py --version; '
+      r'echo "version_exit=$?"; python3 greeter.py; echo "no_args_exit=$?"';
   const dryRun =
       'cd /w && .venv/bin/python watcher.py --dry-run 2>&1 | head -20';
 
@@ -35,6 +38,29 @@ void main() {
     expect(gap, contains('`$dryRun`'));
     expect(gap, contains('(exit 120)'));
     expect(gap, contains('report blocked_reason'));
+  });
+
+  test('any later pass settles a masked chain that printed no failure', () {
+    // A live farm review ran its checks joined by `;`, passed the tests alone,
+    // and was blocked twice on the masked chain, which proved nothing.
+    ToolResultInfo chain(String id, String stdout) => ToolResultInfo(
+      id: id,
+      name: 'local_execute_command',
+      arguments: {'command': masked},
+      result: jsonEncode({'command': masked, 'exit_code': 0, 'stdout': stdout}),
+      outcome: const ToolOutcome(exitCode: 0),
+    );
+    const tests = 'python3 -m unittest -v && python3 greeter.py --version';
+
+    expect(failure.describe([chain('a', 'OK')]), contains('not evidence'));
+    expect(failure.describe([chain('a', 'OK'), _run('b', tests, 0)]), isNull);
+    expect(
+      failure.describe([
+        chain('a', 'Traceback (most recent call last)'),
+        _run('b', tests, 0),
+      ]),
+      isNotNull,
+    );
   });
 
   test('says nothing once that command passes, or when none failed', () {
