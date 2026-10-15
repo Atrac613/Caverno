@@ -3022,6 +3022,67 @@ void main() {
     },
   );
 
+  test('no approval push goes out while the server is not listening', () async {
+    // A CLI farm run beside the GUI app cannot bind the port. Its push would
+    // offer buttons that reach the GUI's server, which knows nothing of it.
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repository = RemoteCodingRepository(
+      prefs,
+      secureStore: _MemorySecureStore(),
+    );
+    final device = RemoteCodingPairedDevice(
+      id: 'granted',
+      name: 'granted',
+      tokenHash: RemoteCodingSecurity.hashToken('token-granted'),
+      createdAt: DateTime(2026, 9, 9, 12),
+      lastSeenAt: DateTime(2026, 9, 9, 12),
+      relayDeliveryHandle: 'delivery_handle_granted',
+      relayDeliveryKeyId: 'key-granted',
+      relayCredentialExpiresAt: DateTime(2027, 9, 9, 12),
+      desktopOriginKinds: const {PendingApprovalKinds.file},
+    );
+    await repository.saveDesktopRelayDeliverySecret(
+      deviceId: device.id,
+      deliverySecret: 'secret-granted',
+    );
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(pairedDevices: [device]),
+    );
+    final relayClient = _RecordingDeliveryRelayClient();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(
+          _InteractionOwnershipChatNotifier.new,
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(
+          relayClient,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(remoteCodingServerProvider);
+    (container.read(chatNotifierProvider.notifier)
+            as _InteractionOwnershipChatNotifier)
+        .setFileApproval(
+          origin: ChatInteractionOrigin.local,
+          remoteDeviceId: null,
+        );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    expect(container.read(remoteCodingServerProvider).isRunning, isFalse);
+    expect(relayClient.deliveries, isEmpty);
+  });
+
   test('an approval push reaches only the devices granted that kind', () async {
     // The push has to answer to the same authority the snapshot does. A device
     // that may not resolve this kind must not learn the approval exists, and
@@ -3066,7 +3127,11 @@ void main() {
       );
     }
     await repository.saveServerSettings(
-      RemoteCodingServerSettings(pairedDevices: [granted, ungranted]),
+      RemoteCodingServerSettings(
+        enabled: true,
+        port: await _unusedPort(),
+        pairedDevices: [granted, ungranted],
+      ),
     );
 
     final relayClient = _RecordingDeliveryRelayClient();
@@ -3091,6 +3156,11 @@ void main() {
     addTearDown(container.dispose);
 
     container.read(remoteCodingServerProvider);
+    // The push's buttons answer through this server, so none goes out before
+    // it is listening.
+    await _waitUntil(
+      () => container.read(remoteCodingServerProvider).isRunning,
+    );
     (container.read(chatNotifierProvider.notifier)
             as _InteractionOwnershipChatNotifier)
         .setFileApproval(

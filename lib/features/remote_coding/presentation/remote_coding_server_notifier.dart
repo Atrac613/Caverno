@@ -2714,7 +2714,10 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
 
   Future<void> _deliverApprovalNotification(ChatState chatState) async {
     final relayClient = ref.read(remoteCodingNotificationRelayClientProvider);
-    if (relayClient == null) {
+    // The push's buttons answer through this server. Without it they reach
+    // nothing, or, for a CLI farm run beside the GUI app, the GUI's server,
+    // which knows nothing of this approval.
+    if (relayClient == null || !state.isRunning) {
       return;
     }
     final request = pendingApprovalsByPriority(chatState).firstOrNull;

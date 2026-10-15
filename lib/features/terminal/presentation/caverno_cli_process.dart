@@ -246,6 +246,7 @@ Future<int> runCavernoCliProcess(
     final runtime = CavernoTerminalRuntimeAdapter(
       container: container,
       environment: resolvedEnvironment,
+      hostRemoteApprovals: true,
     );
     final runtimeRedactor = CavernoCliRedactor(
       secrets: <String>[

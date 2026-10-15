@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +11,7 @@ import '../../../project_farm/application/project_task_workflow_session.dart';
 import '../../../project_farm/data/project_git_status_reader.dart';
 import '../../../project_farm/domain/entities/roadmap_snapshot.dart';
 import '../../../project_farm/presentation/providers/roadmap_snapshot_providers.dart';
+import '../../../remote_coding/presentation/remote_coding_server_notifier.dart';
 import '../../application/caverno_cli_contract.dart';
 
 /// The roadmap item a farm run works on: [requestedId] when given, otherwise
@@ -60,11 +63,13 @@ final class CavernoTerminalFarmRun {
   CavernoTerminalFarmRun({
     required this.container,
     required this.runtime,
+    this.hostRemoteApprovals = false,
     ProjectGitStatusReader gitReader = const ProjectGitStatusReader(),
   }) : _gitReader = gitReader;
 
   final ProviderContainer container;
   final CavernoExecutionRuntime runtime;
+  final bool hostRemoteApprovals;
   final ProjectGitStatusReader _gitReader;
   final ProjectTaskWorkflowSession _session = ProjectTaskWorkflowSession();
   String? _conversationId;
@@ -135,6 +140,37 @@ final class CavernoTerminalFarmRun {
     await _drive(conversationId, projectTaskHeading(item), resume: false);
   }
 
+  /// Hosts the Remote Coding server for this run (CLI5c), so an approval the
+  /// run raises is pushed to a paired phone that can also answer it. The GUI
+  /// app holding the port is reported, not fatal: the push is then withheld,
+  /// because its buttons would reach the GUI, which knows nothing of this run.
+  void _hostRemoteApprovals() {
+    final initial = container.read(remoteCodingServerProvider);
+    if (!initial.settings.enabled) {
+      stderr.writeln(
+        '[remote] Remote Coding is off; approvals are answered here only.',
+      );
+      return;
+    }
+    late final ProviderSubscription<RemoteCodingServerState> subscription;
+    subscription = container.listen(remoteCodingServerProvider, (_, next) {
+      if (next.isRunning) {
+        stderr.writeln(
+          '[remote] Approvals are also sent to paired devices '
+          '(port ${next.settings.port}).',
+        );
+      } else if (next.error != null) {
+        stderr.writeln(
+          '[remote] Remote Coding server unavailable: ${next.error}; '
+          'approvals are answered here only.',
+        );
+      } else {
+        return;
+      }
+      subscription.close();
+    });
+  }
+
   /// Continues a stopped task thread of [projectId] from where it stopped.
   /// Its uncommitted changes are the task's own, so no clean tree is required.
   Future<void> _resume(String projectId, String conversationId) async {
@@ -165,6 +201,7 @@ final class CavernoTerminalFarmRun {
     String heading, {
     required bool resume,
   }) async {
+    if (hostRemoteApprovals) _hostRemoteApprovals();
     Map<String, Object?>? lastDecision;
     final outcome = await _session.run(
       resume: resume,

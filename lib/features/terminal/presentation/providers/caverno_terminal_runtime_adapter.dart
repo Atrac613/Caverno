@@ -25,10 +25,15 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   CavernoTerminalRuntimeAdapter({
     required this.container,
     Map<String, String>? environment,
+    this.hostRemoteApprovals = false,
   }) : environment = environment ?? Platform.environment;
 
   final ProviderContainer container;
   final Map<String, String> environment;
+
+  /// Whether a farm run hosts the Remote Coding server (CLI5c). Off by
+  /// default so a test container never binds a port or reads the keychain.
+  final bool hostRemoteApprovals;
   CavernoExecutionRuntime? _resolvedRuntime;
   ChatNotifier? _resolvedChatNotifier;
   String? _farmProjectId;
@@ -272,6 +277,7 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       final run = _farmRun = CavernoTerminalFarmRun(
         container: container,
         runtime: _runtime,
+        hostRemoteApprovals: hostRemoteApprovals,
       );
       return run.run(
         projectId: farmProjectId,
