@@ -41,6 +41,7 @@ import '../application/caverno_cli_session_logging.dart';
 import '../application/caverno_cli_tool_policy.dart';
 import '../application/caverno_conversation_query.dart';
 import 'caverno_cli_doctor_presenter.dart';
+import 'caverno_cli_preferences_store.dart';
 import 'caverno_cli_redactor.dart';
 import 'caverno_terminal_presenter.dart';
 import 'providers/caverno_terminal_runtime_adapter.dart';
@@ -109,6 +110,11 @@ Future<int> runCavernoCliProcess(
   final resolvedDataDirectory = dataDirectory.isEmpty
       ? null
       : Directory(dataDirectory).absolute;
+  if (resolvedDataDirectory != null) {
+    // Before any SharedPreferences.getInstance(): the instance is cached.
+    await resolvedDataDirectory.create(recursive: true);
+    await isolateCavernoCliPreferences(resolvedDataDirectory);
+  }
   if (invocation.action == CavernoCliInvocationAction.doctor) {
     return _runCavernoCliDoctor(
       invocation: invocation,
@@ -246,7 +252,9 @@ Future<int> runCavernoCliProcess(
     final runtime = CavernoTerminalRuntimeAdapter(
       container: container,
       environment: resolvedEnvironment,
-      hostRemoteApprovals: true,
+      // Only a run that can wait for an answer: a non-interactive run
+      // refuses its first approval at once, and a push would only be noise.
+      hostRemoteApprovals: terminal.isTerminal && !invocation.isJson,
     );
     final runtimeRedactor = CavernoCliRedactor(
       secrets: <String>[

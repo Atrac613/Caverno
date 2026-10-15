@@ -74,6 +74,8 @@ dependencies:
 
   # Local storage
   shared_preferences: ^2.5.5
+  # The CLI swaps the store for a file under --data-dir.
+  shared_preferences_platform_interface: ^2.4.2
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 
