@@ -534,8 +534,23 @@ Findings for CLI5d fixtures and follow-up work:
 - A Debug build prints `flutter: The Dart VM service is listening ...` to
   stdout ahead of the `--json` events.
 
+- CLI5c (2026-10-15): a farm run hosts the Remote Coding server for its own
+  lifetime when Remote Coding is enabled (8d47d7035), so the existing approval
+  push reaches a paired phone whose Approve/Deny answer through it. A push is
+  withheld while that server is not listening, since its buttons would
+  otherwise reach the GUI app's server. A terminal prompt yields to an answer
+  from another device, and a line typed for a prompt answered elsewhere is
+  discarded rather than taken as the next prompt's answer (da97f9d44). Live
+  run on the fixture's V2 item: three approvals, two file edits and one
+  command, were answered from an iPhone, and the terminal printed "Answered on
+  another device." each time. The fourth, a 50-line `python3 -c` check,
+  could not be answered there: the phone's sheet used the whole command as an
+  unbounded title and pushed Approve off screen (fixed in 6afb779d7, not yet
+  verified on the device). Answering from the phone was listed as follow-up
+  work above; hosting the server made it part of this slice.
+
 Next action:
-- CLI5c (pause and notify).
+- Verify 6afb779d7 on the device with a long command approval.
 - Settings isolation for `--data-dir` before the CLI5d matrix, so matrix runs
   neither read nor write the user's app settings.
 
