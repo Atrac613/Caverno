@@ -91,6 +91,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a long command leaves Approve on a phone screen', (
+    tester,
+  ) async {
+    // A farm run's 50-line `python3 -c` check filled the sheet's title and
+    // pushed Approve and Deny off an iPhone screen, so it could not be answered.
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingRepositoryProvider.overrideWithValue(
+          RemoteCodingRepository(preferences, secureStore: _NoSecureStore()),
+        ),
+        remoteCodingMobileNotificationGatewayProvider.overrideWithValue(
+          _UnsupportedGateway(),
+        ),
+        remoteCodingNotificationRelayClientProvider.overrideWithValue(null),
+        remoteCodingNotificationReceiptStoreProvider.overrideWithValue(
+          RemoteCodingNotificationReceiptStore(preferences),
+        ),
+        notificationServiceProvider.overrideWithValue(_SilentNotifications()),
+        remoteCodingClientProvider.overrideWith(_ConnectedClient.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    (container.read(remoteCodingClientProvider.notifier) as _ConnectedClient)
+        .offerLongCommand();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final approve = find.widgetWithText(FilledButton, 'Approve');
+    expect(approve, findsOneWidget);
+    final screen = Offset.zero & tester.view.physicalSize / 3;
+    expect(screen.contains(tester.getCenter(approve)), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a withdrawn approval takes its sheet away', (tester) async {
     // The page opened sheets and never closed them. Answering at the desktop,
     // or withdrawing the per-device grant that let this phone see the approval
@@ -369,6 +415,26 @@ final class _ConnectedClient extends RemoteCodingClientNotifier {
   /// answer: it answers it itself, or the grant that let this device see it is
   /// withdrawn. Either way the next snapshot carries no approval.
   void withdraw() => state = state.copyWith(clearPendingApproval: true);
+
+  /// A command whose title, the command itself, runs to dozens of lines.
+  void offerLongCommand() {
+    final command = [
+      'python3 -m unittest -v && python3 -c "',
+      for (var line = 0; line < 50; line++)
+        'assert parse_greeting([]) == $line',
+      '"',
+    ].join('\n');
+    state = state.copyWith(
+      pendingApproval: RemoteCodingApproval(
+        id: 'long-command-1',
+        kind: PendingApprovalKinds.localCommand,
+        title: command,
+        subtitle: '/Users/dev/project',
+        detail: command,
+        isSimpleDecision: true,
+      ),
+    );
+  }
 
   /// A kind that needs input no phone can collect, so the sheet carries no
   /// answer at all.

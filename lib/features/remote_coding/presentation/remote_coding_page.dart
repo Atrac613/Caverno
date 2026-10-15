@@ -835,8 +835,13 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // A command approval's title is the whole command.
+                            // A 50-line `python3 -c` pushed Approve and Deny
+                            // off the screen; the detail box below scrolls it.
                             Text(
                               approval.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -858,7 +863,11 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                   ),
                   if (approval.reason?.isNotEmpty == true) ...[
                     const SizedBox(height: 12),
-                    Text(approval.reason!),
+                    Text(
+                      approval.reason!,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                   if (approval.warningTitle?.isNotEmpty == true ||
                       approval.warningMessage?.isNotEmpty == true) ...[
