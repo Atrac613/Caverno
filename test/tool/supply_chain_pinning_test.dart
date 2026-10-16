@@ -19,8 +19,8 @@ const _approvedActions = <String, ({String sha, String version})>{
     version: 'v2.23.0',
   ),
   'actions/upload-artifact': (
-    sha: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
-    version: 'v7.0.1',
+    sha: 'cf430e030ddbb5b0abf93d22962f4752f3646cd9',
+    version: 'v7.0.2',
   ),
   'peter-evans/create-pull-request': (
     sha: '5f6978faf089d4d20b00c7766989d076bb2fc7f1',
