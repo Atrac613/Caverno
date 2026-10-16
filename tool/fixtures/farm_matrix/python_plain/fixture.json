@@ -1,0 +1,4 @@
+{
+  "description": "Python with no virtual environment; tests use unittest.",
+  "setup": []
+}

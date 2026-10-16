@@ -1,0 +1,11 @@
+{
+  "description": "A project .venv created by the runner; tests use unittest through it.",
+  "setup": [
+    [
+      "python3",
+      "-m",
+      "venv",
+      ".venv"
+    ]
+  ]
+}

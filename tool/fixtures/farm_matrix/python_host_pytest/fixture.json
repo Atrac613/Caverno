@@ -1,0 +1,4 @@
+{
+  "description": "Tests written for pytest, which only the host interpreter has.",
+  "setup": []
+}
