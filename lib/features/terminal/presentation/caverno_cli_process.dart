@@ -9,6 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/build_info.dart';
+import '../../../core/services/tool_approval_audit_log.dart';
 import '../../chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import '../../chat/application/persistence/caverno_persistence_bootstrap.dart';
 import '../../chat/data/datasources/app_database_open.dart';
@@ -219,6 +220,14 @@ Future<int> runCavernoCliProcess(
             environment: resolvedEnvironment,
           ),
         ),
+        if (resolveCavernoCliApprovalAuditRoot(
+              dataDirectory: resolvedDataDirectory,
+              environment: resolvedEnvironment,
+            )
+            case final auditRoot?)
+          toolApprovalAuditLogProvider.overrideWithValue(
+            ToolApprovalAuditLog(rootDirectoryProvider: () async => auditRoot),
+          ),
         codingProjectRepositoryProvider.overrideWithValue(
           createCavernoCliCodingProjectRepository(
             dataDirectory: resolvedDataDirectory,

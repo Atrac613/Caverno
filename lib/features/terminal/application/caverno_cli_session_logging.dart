@@ -23,6 +23,23 @@ Directory? resolveCavernoCliSessionLogRoot({
   );
 }
 
+/// Resolves the root whose `approval_audit` directory a terminal run writes.
+///
+/// `--data-dir` kept session logs apart but not this audit: CLI5d matrix runs
+/// wrote their decisions into the user's own `~/.caverno/approval_audit`.
+/// `CAVERNO_APPROVAL_AUDIT_DIR` still wins, as it does for the app.
+Directory? resolveCavernoCliApprovalAuditRoot({
+  required Directory? dataDirectory,
+  required Map<String, String> environment,
+}) {
+  final override = environment['CAVERNO_APPROVAL_AUDIT_DIR']?.trim();
+  if (override != null && override.isNotEmpty) {
+    return _normalizedDirectory(Directory(override));
+  }
+  if (dataDirectory == null) return null;
+  return _normalizedDirectory(dataDirectory);
+}
+
 Directory _normalizedDirectory(Directory directory) {
   var path = Directory.fromUri(directory.absolute.uri.normalizePath()).path;
   while (path.length > 1 && path.endsWith(Platform.pathSeparator)) {

@@ -16,6 +16,34 @@ void main() {
     );
   });
 
+  test('a data root also owns the approval audit', () {
+    // Matrix runs with --data-dir wrote their decisions into the user's own
+    // ~/.caverno/approval_audit.
+    final dataRoot = Directory('/tmp/caverno-data');
+    expect(
+      resolveCavernoCliApprovalAuditRoot(
+        dataDirectory: dataRoot,
+        environment: const <String, String>{},
+      )!.path,
+      '/tmp/caverno-data',
+      reason: 'the audit log appends approval_audit to its root',
+    );
+    expect(
+      resolveCavernoCliApprovalAuditRoot(
+        dataDirectory: dataRoot,
+        environment: const {'CAVERNO_APPROVAL_AUDIT_DIR': '/tmp/audit'},
+      )!.path,
+      '/tmp/audit',
+    );
+    expect(
+      resolveCavernoCliApprovalAuditRoot(
+        dataDirectory: null,
+        environment: const <String, String>{},
+      ),
+      isNull,
+    );
+  });
+
   test('explicit data roots own their session log directory', () async {
     final dataRoot = await Directory.systemTemp.createTemp(
       'caverno_cli_session_logs_',
