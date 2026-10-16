@@ -545,8 +545,9 @@ Findings for CLI5d fixtures and follow-up work:
   command, were answered from an iPhone, and the terminal printed "Answered on
   another device." each time. The fourth, a 50-line `python3 -c` check,
   could not be answered there: the phone's sheet used the whole command as an
-  unbounded title and pushed Approve off screen (fixed in 6afb779d7, not yet
-  verified on the device). Answering from the phone was listed as follow-up
+  unbounded title and pushed Approve off screen (fixed in 6afb779d7; verified
+  on the iPhone on 2026-10-16 with a 40-line `python3 -c` approval raised from
+  the GUI app). Answering from the phone was listed as follow-up
   work above; hosting the server made it part of this slice.
 
 - Settings isolation (38e3c100a): with `--data-dir` (or `CAVERNO_HOME`),
@@ -560,7 +561,6 @@ Findings for CLI5d fixtures and follow-up work:
   approval at once.
 
 Next action:
-- Verify 6afb779d7 on the device with a long command approval.
 - CLI5d: the environment matrix runner. Each fixture gets its own data
   directory; seed it from a settings file rather than the app's copy when a
   run must be reproducible.
