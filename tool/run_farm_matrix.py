@@ -25,13 +25,16 @@ triage_session_logs.py / check_fix_firings.py reports.
 from __future__ import annotations
 
 import argparse
+import codecs
 import datetime as dt
 import ipaddress
 import json
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -156,6 +159,78 @@ def summarize_session_logs(root: Path) -> dict:
     return {"decisions": decisions, "turns": turns}
 
 
+# What a person answering approvals needs to see. A Debug build streams its
+# whole diagnostic log, and an approval prompt sat buried under it until the
+# fixture's time limit ran out.
+_SHOWN_LINE = re.compile(
+    r"^(\[approval\]|Command:|Target:|This action can be remembered|"
+    r"Answered on another device|Ignored input|\[question\]|\s+\d+\) |"
+    r"\[farm\]|\[remote\]|\[workflow\]|Caverno (failed|completed))"
+)
+# Prompts end without a newline while they wait, and log lines can follow on
+# the same line once the run moves on.
+_PROMPTS = ("Approve once? [y/N] ", "Answer: ")
+
+
+class ConsoleFilter:
+    """Passes only the lines and prompts in [_SHOWN_LINE] and [_PROMPTS]."""
+
+    def __init__(self, write):
+        self._write = write
+        self._line = ""
+        self._in_command = False
+
+    def feed(self, text: str) -> None:
+        for char in text:
+            if char == "\n":
+                self._emit_line(self._line)
+                self._line = ""
+                continue
+            self._line += char
+            if self._line in _PROMPTS:
+                self._write(self._line)
+                self._line = ""
+
+    def _emit_line(self, line: str) -> None:
+        if line.startswith("Command:"):
+            self._in_command = True
+        elif line.startswith("Target:") or _SHOWN_LINE.match(line):
+            self._in_command = False
+        if self._in_command or _SHOWN_LINE.match(line):
+            self._write(line + "\n")
+
+
+def run_interactive(command: list[str], console_log: Path, timeout) -> int | str:
+    """Runs [command] on this terminal, showing only what needs an answer.
+
+    stdin stays the terminal, so approvals are answered here; the full output
+    is kept in [console_log].
+    """
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+
+    def show(text: str) -> None:
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    console = ConsoleFilter(show)
+    deadline = None if timeout is None else time.monotonic() + timeout
+    with console_log.open("w") as log:
+        while True:
+            chunk = process.stdout.read1(4096)
+            if not chunk:
+                break
+            text = decoder.decode(chunk)
+            log.write(text)
+            console.feed(text)
+            if deadline is not None and time.monotonic() > deadline:
+                process.kill()
+                process.wait()
+                return "timeout"
+    return process.wait()
+
+
 def _text(value) -> str:
     if isinstance(value, bytes):
         return value.decode(errors="replace")
@@ -219,7 +294,7 @@ def run_fixture(args, fixture: Path, out: Path) -> dict:
     try:
         if args.interactive:
             print(f"\n=== {fixture.name}: {project} ===", file=sys.stderr, flush=True)
-            exit_code = subprocess.run(command, timeout=args.timeout).returncode
+            exit_code = run_interactive(command, out / "console.log", args.timeout)
         else:
             result = subprocess.run(command, stdin=subprocess.DEVNULL,
                                     capture_output=True, text=True,
@@ -285,7 +360,8 @@ def main() -> int:
     parser.add_argument("--interactive", action="store_true",
                         help="run each fixture in this terminal to answer approvals")
     parser.add_argument("--fixture", action="append", help="run only these fixtures")
-    parser.add_argument("--timeout", type=int, default=1800, help="seconds per fixture")
+    parser.add_argument("--timeout", type=int, default=None,
+                        help="seconds per fixture (default 1800; none with --interactive)")
     parser.add_argument("--app", type=Path, default=DEFAULT_APP)
     parser.add_argument("--base-url")
     parser.add_argument("--model")
@@ -296,6 +372,8 @@ def main() -> int:
         print(f"app not found: {args.app} (build it with tool/safe-flutter)",
               file=sys.stderr)
         return 64
+    if args.timeout is None and not args.interactive:
+        args.timeout = 1800
     if args.interactive and not sys.stdin.isatty():
         print("--interactive needs a terminal", file=sys.stderr)
         return 64
