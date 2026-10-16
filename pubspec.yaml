@@ -85,7 +85,7 @@ dependencies:
   multicast_dns: ^0.3.2+1
 
   # Image picker
-  image_picker: ^1.2.3
+  image_picker: ^1.2.4
 
   # PDF text extraction for chat attachments and read_file/inspect_file.
   # Pure Dart on purpose: a PDFium-backed plugin would add Mach-O binaries to
