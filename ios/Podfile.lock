@@ -194,7 +194,7 @@ PODS:
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
-  - serious_python_darwin (4.7.0):
+  - serious_python_darwin (5.0.0):
     - Flutter
     - FlutterMacOS
   - share_plus (0.0.1):
@@ -382,7 +382,7 @@ SPEC CHECKSUMS:
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   record_ios: 41f9412c3311401689babe6d7ba69362f10b8325
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  serious_python_darwin: 7df2bd625fe463ef5154fd91df32a7a0ab3d0fac
+  serious_python_darwin: 1e308a8635a2370c195c1cfccf7fe72986b26150
   share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   speech_to_text: 87bf9298952e8d9073be1b6aade6d5758db5170c
