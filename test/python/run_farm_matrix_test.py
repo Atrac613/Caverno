@@ -36,7 +36,6 @@ def _preferences(**settings):
 
 def _problems(preferences, **kwargs):
     options = {
-        "expected_mode": "fullAccess",
         "base_url_override": None,
         "allow_external": False,
     }
@@ -58,13 +57,8 @@ class PrivateUrlTest(unittest.TestCase):
 
 
 class PreferenceProblemsTest(unittest.TestCase):
-    def test_accepts_an_all_lan_full_access_copy(self):
+    def test_accepts_an_all_lan_copy(self):
         self.assertEqual(_problems(_preferences()), [])
-
-    def test_refuses_an_approval_mode_the_operator_did_not_choose(self):
-        problems = _problems(_preferences(codingApprovalMode="defaultPermissions"))
-        self.assertEqual(len(problems), 1)
-        self.assertIn("codingApprovalMode", problems[0])
 
     def test_refuses_a_role_routed_to_an_external_model(self):
         # The live runs' review route pointed at api.openai.com until the
@@ -86,6 +80,25 @@ class PreferenceProblemsTest(unittest.TestCase):
 
     def test_refuses_unreadable_settings(self):
         self.assertTrue(_problems({}))
+
+
+class SummarizeSessionLogsTest(unittest.TestCase):
+    def test_reads_decisions_and_turns(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as root:
+            log = Path(root, "coding", "task.jsonl")
+            log.parent.mkdir()
+            log.write_text("\n".join([
+                json.dumps({"operation": "project_task_decision",
+                            "projectTaskDecision": {"phase": "review",
+                                                    "decision": "clean"}}),
+                json.dumps({"operation": "turn_exit"}),
+                "not json",
+            ]))
+            summary = matrix.summarize_session_logs(Path(root))
+        self.assertEqual(summary, {"decisions": ["review:clean"], "turns": 1})
 
 
 class SummarizeEventsTest(unittest.TestCase):

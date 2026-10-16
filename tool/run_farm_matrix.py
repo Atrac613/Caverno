@@ -2,18 +2,20 @@
 """Run `caverno farm` over small fixture projects and summarize the outcomes.
 
 CLI5d. Each fixture under tool/fixtures/farm_matrix/<name>/ is copied to a
-fresh temporary git repository and run headless with its own --data-dir.
+fresh temporary git repository and run with its own --data-dir.
 
-The runner never chooses an approval mode. It copies a preferences file the
-operator prepared (--preferences, the `preferences.json` of a CLI data
-directory) into each fixture's data directory unchanged, and refuses to start
-unless that file already selects the approval mode the operator intends
-(--expect-approval-mode, default fullAccess) and every LLM route in it is a
-loopback or private-network address (fixture contents are sent to the model;
---allow-external lifts this). Under Full Access, in-project edits and commands
-inside the macOS workspace containment proceed; anything the approval gate
-still sends to a person stops the run with exit 77, and which capability
-stopped which fixture is the point of the matrix, not a harness failure.
+A CLI run always asks a person for approvals: it pins the approval mode to
+defaultPermissions whatever the copied settings say (CLI2). By default the
+matrix runs non-interactively, so each fixture stops at its first approval
+with exit 77, and which capability stopped which fixture is recorded as data.
+With --interactive each fixture runs in this terminal instead, and its
+approvals are answered here or, when Remote Coding is on, from a paired phone
+(CLI5c), so a fixture can run through to its commit.
+
+Each data directory starts from --preferences when given, otherwise from a
+copy of the app's preferences. The run is refused unless every LLM route in
+those settings is a loopback or private-network address, because fixture
+contents are sent to the model (--allow-external lifts this).
 
 Results go to build/farm_matrix/<UTC timestamp>/: summary.md, summary.json,
 and per fixture the farm's JSON events, stderr, data directory, and the
@@ -72,7 +74,6 @@ def llm_routes(settings: dict, base_url_override: str | None) -> dict[str, str]:
 def preference_problems(
     preferences: dict,
     *,
-    expected_mode: str,
     base_url_override: str | None,
     allow_external: bool,
 ) -> list[str]:
@@ -82,9 +83,6 @@ def preference_problems(
     except json.JSONDecodeError:
         return [f"{SETTINGS_KEY} is missing or not JSON"]
     problems = []
-    mode = settings.get("codingApprovalMode")
-    if mode != expected_mode:
-        problems.append(f"codingApprovalMode is {mode!r}, expected {expected_mode!r}")
     if not allow_external:
         external = {
             role: url
@@ -136,6 +134,28 @@ def summarize_events(lines: list[str]) -> dict:
     }
 
 
+def summarize_session_logs(root: Path) -> dict:
+    """Workflow decisions and turn count from a run's session logs.
+
+    An interactive run has no `--json` stream, so its outcome is read back
+    from what the run logged.
+    """
+    decisions: list[str] = []
+    turns = 0
+    for path in sorted(root.glob("**/*.jsonl")):
+        for line in path.read_text(errors="replace").splitlines():
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            decision = entry.get("projectTaskDecision")
+            if isinstance(decision, dict):
+                decisions.append(f"{decision.get('phase')}:{decision.get('decision')}")
+            if entry.get("operation") == "turn_exit":
+                turns += 1
+    return {"decisions": decisions, "turns": turns}
+
+
 def _text(value) -> str:
     if isinstance(value, bytes):
         return value.decode(errors="replace")
@@ -161,23 +181,50 @@ def prepare_project(fixture: Path) -> Path:
     return project
 
 
+def seed_data_dir(args, data_dir: Path) -> dict:
+    """Starts [data_dir] from --preferences, or from the app's preferences."""
+    data_dir.mkdir(parents=True)
+    target = data_dir / "preferences.json"
+    if args.preferences:
+        shutil.copyfile(args.preferences, target)
+        target.chmod(0o600)
+    else:
+        subprocess.run([str(args.app), "doctor", "--data-dir", str(data_dir),
+                        "--json"], stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=120)
+    return json.loads(target.read_text())
+
+
 def run_fixture(args, fixture: Path, out: Path) -> dict:
     data_dir = out / "data"
-    data_dir.mkdir(parents=True)
-    shutil.copyfile(args.preferences, data_dir / "preferences.json")
-    (data_dir / "preferences.json").chmod(0o600)
+    problems = preference_problems(
+        seed_data_dir(args, data_dir),
+        base_url_override=args.base_url,
+        allow_external=args.allow_external,
+    )
+    if problems:
+        return {"fixture": fixture.name, "exitCode": "refused",
+                "elapsedSeconds": 0, "refused": problems}
     project = prepare_project(fixture)
     command = [str(args.app), "farm", "--project", str(project),
-               "--data-dir", str(data_dir), "--json"]
+               "--data-dir", str(data_dir)]
+    if not args.interactive:
+        command.append("--json")
     for flag, value in (("--base-url", args.base_url), ("--model", args.model),
                         ("--api-key", args.api_key)):
         if value:
             command += [flag, value]
     started = dt.datetime.now(dt.timezone.utc)
+    stdout = stderr = ""
     try:
-        result = subprocess.run(command, stdin=subprocess.DEVNULL,
-                                capture_output=True, text=True, timeout=args.timeout)
-        exit_code, stdout, stderr = result.returncode, result.stdout, result.stderr
+        if args.interactive:
+            print(f"\n=== {fixture.name}: {project} ===", file=sys.stderr, flush=True)
+            exit_code = subprocess.run(command, timeout=args.timeout).returncode
+        else:
+            result = subprocess.run(command, stdin=subprocess.DEVNULL,
+                                    capture_output=True, text=True,
+                                    timeout=args.timeout)
+            exit_code, stdout, stderr = result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired as error:
         exit_code, stdout, stderr = "timeout", _text(error.stdout), _text(error.stderr)
     elapsed = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
@@ -194,13 +241,16 @@ def run_fixture(args, fixture: Path, out: Path) -> dict:
         (out / name).write_text(produced.stdout + produced.stderr)
     commits = subprocess.run(["git", "log", "--oneline", "-3"], cwd=project,
                              capture_output=True, text=True).stdout
+    summary = summarize_events(stdout.splitlines())
+    if args.interactive:
+        summary.update(summarize_session_logs(logs))
     return {
         "fixture": fixture.name,
         "exitCode": exit_code,
         "elapsedSeconds": round(elapsed),
         "project": str(project),
         "commits": commits.strip().splitlines(),
-        **summarize_events(stdout.splitlines()),
+        **summary,
     }
 
 
@@ -208,13 +258,18 @@ def render_markdown(results: list[dict]) -> str:
     rows = ["| Fixture | Exit | Outcome | Stopped at | Seconds |",
             "|---|---|---|---|---|"]
     for result in results:
+        if "refused" in result:
+            rows.append(f"| {result['fixture']} | - | refused: "
+                        f"{'; '.join(result['refused'])} | | |")
+            continue
         terminal = result.get("terminal") or {}
         approval = result.get("lastApproval") or {}
         stopped = (
             f"{approval.get('capability')}: {str(approval.get('summary', ''))[:60]}"
             if result["exitCode"] == 77 else ""
         )
-        outcome = terminal.get("code") or terminal.get("type") or "no terminal event"
+        outcome = (terminal.get("code") or terminal.get("type")
+                   or (result.get("decisions") or ["no terminal event"])[-1])
         rows.append(
             f"| {result['fixture']} | {result['exitCode']} | {outcome} | "
             f"{stopped} | {result['elapsedSeconds']} |"
@@ -225,9 +280,10 @@ def render_markdown(results: list[dict]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--preferences", type=Path, required=True,
-                        help="an operator-prepared CLI preferences.json")
-    parser.add_argument("--expect-approval-mode", default="fullAccess")
+    parser.add_argument("--preferences", type=Path,
+                        help="a CLI preferences.json to start each data dir from")
+    parser.add_argument("--interactive", action="store_true",
+                        help="run each fixture in this terminal to answer approvals")
     parser.add_argument("--fixture", action="append", help="run only these fixtures")
     parser.add_argument("--timeout", type=int, default=1800, help="seconds per fixture")
     parser.add_argument("--app", type=Path, default=DEFAULT_APP)
@@ -240,15 +296,8 @@ def main() -> int:
         print(f"app not found: {args.app} (build it with tool/safe-flutter)",
               file=sys.stderr)
         return 64
-    problems = preference_problems(
-        json.loads(args.preferences.read_text()),
-        expected_mode=args.expect_approval_mode,
-        base_url_override=args.base_url,
-        allow_external=args.allow_external,
-    )
-    if problems:
-        for problem in problems:
-            print(f"refusing {args.preferences}: {problem}", file=sys.stderr)
+    if args.interactive and not sys.stdin.isatty():
+        print("--interactive needs a terminal", file=sys.stderr)
         return 64
     fixtures = sorted(p for p in FIXTURES.iterdir() if (p / "fixture.json").exists())
     if args.fixture:
